@@ -13,6 +13,7 @@ from .text_merge import (
     prefer_richer_text,
 )
 from .tokens import approx_tokens
+from .zh_semantics import is_task_management_text
 
 
 @dataclass(slots=True)
@@ -68,10 +69,7 @@ class PromptMemoryBuilder:
         candidate = PromptMemory(
             goal=memory.primary_goal,
             completed_tasks=completed_tasks,
-            artifacts=_select_artifact_items(
-                memory.active_artifacts,
-                self.config.max_artifacts,
-            ),
+            artifacts=_select_artifact_items(memory, self.config.max_artifacts),
             state_facts=_select_state_fact_items(
                 memory.state_facts,
                 self.config.max_state_facts,
@@ -488,10 +486,13 @@ def _select_state_fact_items(items: dict[str, str], limit: int) -> list[str]:
     return pairs[-limit:]
 
 
-def _select_artifact_items(items: list[str], limit: int) -> list[str]:
-    if limit <= 0 or not items:
+def _select_artifact_items(memory: WorkingMemory, limit: int) -> list[str]:
+    if limit <= 0 or not memory.active_artifacts:
         return []
-    file_like = [item for item in items if item and contains_file_hint(item)]
+    if _should_suppress_artifacts_for_context(memory):
+        return []
+
+    file_like = [item for item in memory.active_artifacts if item and contains_file_hint(item)]
     if not file_like:
         return []
     if len(file_like) <= limit:
@@ -509,6 +510,27 @@ def _select_artifact_items(items: list[str], limit: int) -> list[str]:
     )
     chosen_indexes = sorted(index for _, index in scored[:limit])
     return [file_like[index] for index in chosen_indexes]
+
+
+def _should_suppress_artifacts_for_context(memory: WorkingMemory) -> bool:
+    context_items = [
+        memory.primary_goal or "",
+        *memory.open_tasks,
+        *memory.pending_verification_tasks,
+        *memory.completed_tasks[-1:],
+        *memory.current_plan[-1:],
+        *memory.active_decisions[-2:],
+        *memory.active_constraints[-2:],
+        *memory.open_questions[-1:],
+        *memory.state_facts.values(),
+    ]
+    if any(contains_file_hint(item) for item in context_items if item):
+        return False
+
+    context_text = " ".join(item for item in context_items if item)
+    if not context_text:
+        return False
+    return is_task_management_text(context_text)
 
 
 def _merge_state_fact_items(existing: list[str], incoming: list[str]) -> list[str]:

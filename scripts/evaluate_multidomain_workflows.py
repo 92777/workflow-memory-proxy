@@ -130,10 +130,47 @@ def build_scenarios() -> list[ScenarioSpec]:
 
 
 def scripted_turns(spec: ScenarioSpec) -> list[tuple[str, list[dict[str, str]]]]:
+    variant = len(spec.slug) % 3
+    validation_run_text = (
+        f"收到，我先再验一下{spec.task_validation}。"
+        if variant == 0
+        else f"行，我先补一下{spec.task_validation}。"
+        if variant == 1
+        else f"我先过一遍{spec.task_validation}。"
+    )
+    validation_pass_text = (
+        f"验证完成: {spec.task_validation}"
+        if variant == 0
+        else f"验证通过: {spec.task_validation}"
+    )
+    gray_run_text = (
+        f"我再跑一轮{spec.task_gray}回归。"
+        if variant == 0
+        else f"行，我先确认一轮{spec.task_gray}回归。"
+        if variant == 1
+        else f"我先过一遍{spec.task_gray}回归。"
+    )
+    gray_pass_text = (
+        f"回归完成: {spec.task_gray}"
+        if variant == 0
+        else f"回归通过: {spec.task_gray}"
+    )
+    write_trace_text = (
+        f"已更新 {spec.code_file}"
+        if variant != 2
+        else f"刚把 {spec.code_file} 改好了。"
+    )
+    filler_view_text = (
+        "我先跟一下。"
+        if variant == 0
+        else "这个我来处理。"
+        if variant == 1
+        else "这块我盯一下。"
+    )
     return [
         (
-            f"我要给{spec.domain}做一个{spec.goal}，你帮我把方案骨架先搭起来。",
-            [{"role": "assistant", "content": f"我先梳理{spec.task_plan}和{spec.task_mapping}。"}],
+            f"我们现在做{spec.domain}这个，先把{spec.goal}骨架搭起来。",
+            [{"role": "assistant", "content": f"好，我先梳理{spec.task_plan}和{spec.task_mapping}。"}],
         ),
         (
             spec.constraint_primary,
@@ -143,8 +180,9 @@ def scripted_turns(spec: ScenarioSpec) -> list[tuple[str, list[dict[str, str]]]]
             ],
         ),
         (
-            f"你帮我把{spec.task_plan}干了。",
+            f"那你先把{spec.task_plan}做了。",
             [
+                {"role": "assistant", "content": filler_view_text},
                 {"role": "assistant", "content": f"搜索 {spec.symbol_plan} 的实现。"},
                 {"role": "tool", "content": f"{spec.code_file}:32:def {spec.symbol_plan}("},
                 {"role": "assistant", "content": f"查看 {spec.code_file} 的现有实现。"},
@@ -152,16 +190,17 @@ def scripted_turns(spec: ScenarioSpec) -> list[tuple[str, list[dict[str, str]]]]
             ],
         ),
         (
-            f"还是按{spec.decision_old}。",
-            [{"role": "assistant", "content": f"收到，先按{spec.decision_old}。"}],
+            f"先{spec.decision_old}走。",
+            [{"role": "assistant", "content": f"收到，先{spec.decision_old}。"}],
         ),
         (
             f"请记住文件 {spec.artifact_plan} 里有当前回放清单。",
             [{"role": "assistant", "content": f"请记住文件 {spec.artifact_plan} 里有当前回放清单。"}],
         ),
         (
-            f"你帮我把{spec.task_mapping}干了。",
+            f"那你接着把{spec.task_mapping}做了。",
             [
+                {"role": "assistant", "content": filler_view_text},
                 {"role": "assistant", "content": f"列出 {spec.workspace_dir} 目录。"},
                 {
                     "role": "tool",
@@ -180,12 +219,13 @@ def scripted_turns(spec: ScenarioSpec) -> list[tuple[str, list[dict[str, str]]]]
             [{"role": "assistant", "content": f"查看 {spec.code_file} 的现有实现。"}],
         ),
         (
-            f"还是按{spec.decision_new}。",
-            [{"role": "assistant", "content": f"收到，后续改按{spec.decision_new}。"}],
+            f"改成{spec.decision_new}吧。",
+            [{"role": "assistant", "content": f"收到，后续改成{spec.decision_new}。"}],
         ),
         (
-            f"你帮我把{spec.task_validation}干了。",
+            f"那你把{spec.task_validation}做了。",
             [
+                {"role": "assistant", "content": filler_view_text},
                 {"role": "assistant", "content": f"搜索 {spec.symbol_validation} 的实现。"},
                 {"role": "tool", "content": f"{spec.code_file}:88:def {spec.symbol_validation}("},
                 {"role": "assistant", "content": f"查看 {spec.code_file} 的现有实现。"},
@@ -193,20 +233,22 @@ def scripted_turns(spec: ScenarioSpec) -> list[tuple[str, list[dict[str, str]]]]
             ],
         ),
         (
-            f"现在{spec.task_validation}已经通过了，下一步做{spec.task_replay}。",
-            [{"role": "assistant", "content": f"收到，我会继续推进{spec.task_replay}。"}],
+            f"行，{spec.task_validation}过了，接着做{spec.task_replay}。",
+            [
+                {"role": "assistant", "content": validation_run_text},
+                {"role": "tool", "content": validation_pass_text},
+                {"role": "assistant", "content": f"收到，我会继续推进{spec.task_replay}。"},
+            ],
         ),
         (
             f"请记住文件 {spec.artifact_acceptance} 里有验收口径。",
             [{"role": "assistant", "content": f"请记住文件 {spec.artifact_acceptance} 里有验收口径。"}],
         ),
         (
-            f"你帮我把{spec.task_replay}干了。",
+            f"那你把{spec.task_replay}也做了。",
             [
-                {
-                    "role": "assistant",
-                    "content": f"*** Begin Patch\n*** Update File: {spec.code_file}\n+def {spec.symbol_validation}():\n+    return 'ok'\n*** End Patch",
-                },
+                {"role": "assistant", "content": filler_view_text},
+                {"role": "assistant", "content": write_trace_text},
                 {"role": "assistant", "content": f"我已经完成了{spec.task_replay}，下一步准备做{spec.task_gray}。"},
                 {"role": "tool", "content": f"tests passed for {spec.task_replay}"},
             ],
@@ -220,8 +262,9 @@ def scripted_turns(spec: ScenarioSpec) -> list[tuple[str, list[dict[str, str]]]]
             [{"role": "assistant", "content": f"继续读取 {spec.code_file} 的现有实现。"}],
         ),
         (
-            f"你帮我把{spec.task_gray}干了。",
+            f"那你把{spec.task_gray}做了。",
             [
+                {"role": "assistant", "content": filler_view_text},
                 {"role": "assistant", "content": f"搜索 {spec.symbol_release} 的实现。"},
                 {"role": "tool", "content": f"{spec.code_file}:120:def {spec.symbol_release}("},
                 {"role": "assistant", "content": f"查看 {spec.code_file} 的现有实现。"},
@@ -229,8 +272,12 @@ def scripted_turns(spec: ScenarioSpec) -> list[tuple[str, list[dict[str, str]]]]
             ],
         ),
         (
-            f"验收通过: {spec.task_gray}",
-            [{"role": "assistant", "content": f"收到，{spec.task_gray}已经验收通过。"}],
+            f"行，{spec.task_gray}也过了。",
+            [
+                {"role": "assistant", "content": gray_run_text},
+                {"role": "tool", "content": gray_pass_text},
+                {"role": "assistant", "content": f"收到，{spec.task_gray}已经验收通过。"},
+            ],
         ),
         (
             f"还是按{spec.decision_new}，不要再回到{spec.decision_old}。",
@@ -326,7 +373,18 @@ def _scenario_issues(spec: ScenarioSpec, combined_text: str, memory_text: str) -
 
     noise_checks = [
         ("tests passed", "stale_test_noise_retained"),
+        ("验证通过:", "stale_test_noise_retained"),
+        ("验证完成:", "stale_test_noise_retained"),
         ("验收通过:", "stale_test_noise_retained"),
+        ("回归通过:", "stale_test_noise_retained"),
+        ("回归完成:", "stale_test_noise_retained"),
+        ("我先跟一下。", "stale_filler_retained"),
+        ("这个我来处理。", "stale_filler_retained"),
+        ("这块我盯一下。", "stale_filler_retained"),
+        (f"收到，我先再做一次{spec.task_validation}。", "stale_validation_trace_retained"),
+        (f"收到，我先再验一下{spec.task_validation}。", "stale_validation_trace_retained"),
+        (f"我再做一次{spec.task_gray}回归。", "stale_validation_trace_retained"),
+        (f"我再跑一轮{spec.task_gray}回归。", "stale_validation_trace_retained"),
         (f"搜索 {spec.symbol_release} 的实现。", "symbol_search_trace_retained"),
         (f"{spec.code_file}:120:def {spec.symbol_release}(", "search_result_trace_retained"),
         (f"列出 {spec.workspace_dir} 目录。", "listing_trace_retained"),

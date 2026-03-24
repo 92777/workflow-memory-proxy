@@ -38,6 +38,7 @@ from memory_proxy.static_code import (  # noqa: E402
 )
 from memory_proxy.store import SQLiteMemoryStore  # noqa: E402
 from memory_proxy.tokens import approx_tokens  # noqa: E402
+from memory_proxy.zh_semantics import contains_workflow_keyword, is_task_management_text  # noqa: E402
 
 
 class StubLLMClient:
@@ -67,6 +68,19 @@ class MemoryCompressorTests(unittest.TestCase):
         self.assertIn("constraint", event_types)
         self.assertEqual(result.working_memory.primary_goal, "OpenAI 兼容代理")
 
+    def test_user_message_extracts_goal_from_conversational_setup(self) -> None:
+        compressor = MemoryCompressor()
+        result = compressor.compress(
+            [
+                RawMessage(
+                    message_id="msg_001b",
+                    role="user",
+                    content="我们现在做教育排课这个，先把排课回放助手骨架搭起来。",
+                )
+            ]
+        )
+        self.assertEqual(result.working_memory.primary_goal, "排课回放助手")
+
     def test_assistant_message_extracts_task_and_plan(self) -> None:
         compressor = MemoryCompressor()
         result = compressor.compress(
@@ -82,6 +96,36 @@ class MemoryCompressorTests(unittest.TestCase):
         self.assertIn(("task", "claimed_done", "会话存储"), statuses)
         self.assertIn(("plan", "active", "实现 prompt builder"), statuses)
         self.assertIn("会话存储", result.working_memory.pending_verification_tasks)
+
+    def test_assistant_status_field_does_not_extract_generic_done_subject(self) -> None:
+        compressor = MemoryCompressor(recent_window=0)
+        result = compressor.compress(
+            [
+                RawMessage(
+                    message_id="msg_assistant_status_field",
+                    role="assistant",
+                    content="1. AI 家教报表配置\n状态：已完成",
+                )
+            ]
+        )
+        statuses = {(event.type, event.status, event.subject) for event in result.events}
+        self.assertNotIn(("task", "claimed_done", "状态"), statuses)
+        self.assertNotIn("状态", result.working_memory.pending_verification_tasks)
+
+    def test_assistant_aggregate_done_summary_does_not_extract_generic_task_subject(self) -> None:
+        compressor = MemoryCompressor(recent_window=0)
+        result = compressor.compress(
+            [
+                RawMessage(
+                    message_id="msg_assistant_aggregate_done",
+                    role="assistant",
+                    content="你目前最近的 20 条任务都已经完成。",
+                )
+            ]
+        )
+        statuses = {(event.type, event.status, event.subject) for event in result.events}
+        self.assertNotIn(("task", "claimed_done", "你目前最近的 20 条任务都"), statuses)
+        self.assertEqual(result.working_memory.pending_verification_tasks, [])
 
     def test_assistant_message_extracts_recommendation_as_decision(self) -> None:
         compressor = MemoryCompressor()
@@ -129,6 +173,22 @@ class MemoryCompressorTests(unittest.TestCase):
         self.assertIn(("task", "proposed", "记忆压缩服务部署到 docker"), statuses)
         self.assertIn("TODO: 记忆压缩服务部署到 docker", result.memory_dsl)
 
+    def test_user_task_batch_with_uniform_done_suffix_does_not_extract_generic_done_subject(self) -> None:
+        compressor = MemoryCompressor(recent_window=0)
+        result = compressor.compress(
+            [
+                RawMessage(
+                    message_id="msg_user_task_batch",
+                    role="user",
+                    content="帮我创建4个任务，1.ai家教报表配置 4h；2.产品研发沟通会 1h。3.平台问题支撑 1h，4.安徽话机文档整理。均已完成。",
+                )
+            ]
+        )
+        statuses = {(event.type, event.status, event.subject) for event in result.events}
+        self.assertIn(("task", "proposed", "创建4个任务"), statuses)
+        self.assertNotIn(("task", "claimed_done", "均"), statuses)
+        self.assertNotIn("均", result.working_memory.pending_verification_tasks)
+
     def test_user_status_update_extracts_done_and_next(self) -> None:
         compressor = MemoryCompressor(recent_window=0)
         result = compressor.compress(
@@ -157,6 +217,34 @@ class MemoryCompressorTests(unittest.TestCase):
         )
         decisions = [event.subject for event in events if event.type == "decision"]
         self.assertIn("按之前那个方案", decisions)
+
+    def test_user_message_extracts_decision_from_colloquial_keep_plan(self) -> None:
+        extractor = RuleBasedExtractor()
+        events = extractor.extract(
+            RawMessage(
+                "msg_user_decision_keep",
+                "user",
+                "先按逐校导入方案走。",
+            ),
+            session_id="sess_user_decision_keep",
+            turn_id="turn_user_decision_keep",
+        )
+        decisions = [event.subject for event in events if event.type == "decision"]
+        self.assertIn("按逐校导入方案", decisions)
+
+    def test_user_message_extracts_decision_from_change_phrase(self) -> None:
+        extractor = RuleBasedExtractor()
+        events = extractor.extract(
+            RawMessage(
+                "msg_user_decision_change",
+                "user",
+                "改成按年级批量导入方案吧。",
+            ),
+            session_id="sess_user_decision_change",
+            turn_id="turn_user_decision_change",
+        )
+        decisions = [event.subject for event in events if event.type == "decision"]
+        self.assertIn("按年级批量导入方案", decisions)
 
     def test_user_message_extracts_decision_resolution_from_do_not_return_phrase(self) -> None:
         extractor = RuleBasedExtractor()
@@ -513,6 +601,106 @@ MCPROXY_RECENT_WINDOW=2
         self.assertEqual([message.content for message in result.kept_messages], ["灰度通过: demo_acceptance.md"])
         self.assertEqual(result.dropped_indexes, [0])
 
+    def test_history_pruner_drops_validation_run_command_after_later_pass(self) -> None:
+        result = prune_history_messages(
+            [
+                ChatMessage(role="assistant", content="收到，我先再做一次导入校验。"),
+                ChatMessage(role="tool", content="验收通过: 导入校验"),
+            ]
+        )
+        self.assertEqual([message.content for message in result.kept_messages], ["验收通过: 导入校验"])
+        self.assertEqual(result.dropped_indexes, [0])
+
+    def test_history_pruner_keeps_only_latest_validation_run_for_same_target(self) -> None:
+        result = prune_history_messages(
+            [
+                ChatMessage(role="assistant", content="再做一次上线回归。"),
+                ChatMessage(role="assistant", content="重新做一次上线回归。"),
+            ]
+        )
+        self.assertEqual([message.content for message in result.kept_messages], ["重新做一次上线回归。"])
+        self.assertEqual(result.dropped_indexes, [0])
+
+    def test_history_pruner_drops_shorthand_validation_run_after_later_pass(self) -> None:
+        result = prune_history_messages(
+            [
+                ChatMessage(role="assistant", content="收到，我先再验一下导入校验。"),
+                ChatMessage(role="tool", content="验证通过: 导入校验"),
+            ]
+        )
+        self.assertEqual([message.content for message in result.kept_messages], ["验证通过: 导入校验"])
+        self.assertEqual(result.dropped_indexes, [0])
+
+    def test_history_pruner_keeps_only_latest_shorthand_validation_run_for_same_target(self) -> None:
+        result = prune_history_messages(
+            [
+                ChatMessage(role="assistant", content="再测一轮上线回归。"),
+                ChatMessage(role="assistant", content="再跑一下上线回归。"),
+            ]
+        )
+        self.assertEqual([message.content for message in result.kept_messages], ["再跑一下上线回归。"])
+        self.assertEqual(result.dropped_indexes, [0])
+
+    def test_history_pruner_drops_colloquial_validation_run_after_later_pass(self) -> None:
+        result = prune_history_messages(
+            [
+                ChatMessage(role="assistant", content="行，我先补一下导入校验。"),
+                ChatMessage(role="tool", content="验证完成: 导入校验"),
+            ]
+        )
+        self.assertEqual([message.content for message in result.kept_messages], ["验证完成: 导入校验"])
+        self.assertEqual(result.dropped_indexes, [0])
+
+    def test_history_pruner_keeps_only_latest_colloquial_validation_run_for_same_target(self) -> None:
+        result = prune_history_messages(
+            [
+                ChatMessage(role="assistant", content="我先确认一轮上线回归。"),
+                ChatMessage(role="assistant", content="我先过一遍上线回归。"),
+            ]
+        )
+        self.assertEqual([message.content for message in result.kept_messages], ["我先过一遍上线回归。"])
+        self.assertEqual(result.dropped_indexes, [0])
+
+    def test_history_pruner_drops_targetless_execution_filler_before_search(self) -> None:
+        result = prune_history_messages(
+            [
+                ChatMessage(role="assistant", content="我先看一下。"),
+                ChatMessage(role="assistant", content="搜索 build_prompt_memory 的实现。"),
+            ]
+        )
+        self.assertEqual([message.content for message in result.kept_messages], ["搜索 build_prompt_memory 的实现。"])
+        self.assertEqual(result.dropped_indexes, [0])
+
+    def test_history_pruner_drops_targetless_execution_filler_before_write(self) -> None:
+        result = prune_history_messages(
+            [
+                ChatMessage(role="assistant", content="这个我接着弄。"),
+                ChatMessage(role="assistant", content="已更新 /tmp/demo.py 并补上测试。"),
+            ]
+        )
+        self.assertEqual([message.content for message in result.kept_messages], ["已更新 /tmp/demo.py 并补上测试。"])
+        self.assertEqual(result.dropped_indexes, [0])
+
+    def test_history_pruner_drops_loose_execution_filler_before_search(self) -> None:
+        result = prune_history_messages(
+            [
+                ChatMessage(role="assistant", content="我先跟一下。"),
+                ChatMessage(role="assistant", content="搜索 build_prompt_memory 的实现。"),
+            ]
+        )
+        self.assertEqual([message.content for message in result.kept_messages], ["搜索 build_prompt_memory 的实现。"])
+        self.assertEqual(result.dropped_indexes, [0])
+
+    def test_history_pruner_drops_loose_execution_filler_with_lai_before_write(self) -> None:
+        result = prune_history_messages(
+            [
+                ChatMessage(role="assistant", content="这个我来处理。"),
+                ChatMessage(role="assistant", content="已更新 /tmp/demo.py 并补上测试。"),
+            ]
+        )
+        self.assertEqual([message.content for message in result.kept_messages], ["已更新 /tmp/demo.py 并补上测试。"])
+        self.assertEqual(result.dropped_indexes, [0])
+
     def test_history_pruner_keeps_only_latest_write_for_same_file(self) -> None:
         result = prune_history_messages(
             [
@@ -733,6 +921,10 @@ MCPROXY_RECENT_WINDOW=2
             ),
             "low",
         )
+
+    def test_static_zh_semantics_detects_task_management_language(self) -> None:
+        self.assertTrue(contains_workflow_keyword("把这 4 个任务设置成已完成状态。"))
+        self.assertTrue(is_task_management_text("你刚才创建的任务创建成功了吗？"))
 
     def test_event_dsl_round_trip(self) -> None:
         compressor = MemoryCompressor()
@@ -1250,6 +1442,24 @@ MCPROXY_RECENT_WINDOW=2
         prompt_text = prompt_memory_to_text(prompt_memory)
 
         self.assertIn("TODO:", prompt_text)
+        self.assertNotIn("ART:", prompt_text)
+
+    def test_prompt_memory_builder_suppresses_stale_artifacts_for_task_management_context(self) -> None:
+        builder = PromptMemoryBuilder(PromptMemoryConfig(max_tokens=120, max_item_tokens=40, max_artifacts=2))
+        memory = WorkingMemory(
+            open_tasks=["创建4个任务"],
+            active_constraints=["设置成已完成状态"],
+            open_questions=["你刚才创建的任务创建成功了吗？"],
+            active_artifacts=[
+                "/workspace/demo/ai-tutor-backend-dev-spec.md",
+                "/workspace/demo/ai-tutor-usage-test-case.md",
+            ],
+        )
+
+        prompt_memory = builder.build(memory)
+        prompt_text = prompt_memory_to_text(prompt_memory)
+
+        self.assertIn("TODO: 创建4个任务", prompt_text)
         self.assertNotIn("ART:", prompt_text)
 
     def test_prompt_memory_builder_prefers_signal_rich_constraints(self) -> None:

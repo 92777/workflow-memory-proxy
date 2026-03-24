@@ -5,6 +5,7 @@ import re
 from dataclasses import dataclass
 
 from .models import Actor, EventAction, EventType, MemoryEvent, RawMessage
+from .zh_semantics import contains_workflow_keyword, is_generic_task_subject
 
 
 ARTIFACT_PATTERN = re.compile(r"(?:/[\w./-]+)|(?:\b[\w./-]+\.[A-Za-z0-9]+\b)")
@@ -89,35 +90,21 @@ class RuleBasedExtractor:
             return True
         if text.endswith(("?", "？")):
             return True
+        if contains_workflow_keyword(text):
+            return True
         return any(
             token in lower
             for token in (
-                "帮我",
-                "请你",
-                "麻烦",
+                "我们现在做",
                 "我想",
                 "我要",
                 "希望",
                 "目标",
-                "必须",
-                "不要",
-                "不能",
+                "骨架",
+                "搭起来",
                 "优先",
                 "重点",
-                "下一步",
-                "接下来",
                 "计划",
-                "已经完成",
-                "完成了",
-                "做完",
-                "搞定",
-                "放一下",
-                "搁置",
-                "暂停",
-                "还是按",
-                "就按",
-                "改用",
-                "改成",
                 "仍是",
                 "确定用",
                 "采用",
@@ -213,6 +200,8 @@ class RuleBasedExtractor:
                 text,
                 (
                     (r"^(?:我想做(?:一个)?|我想|我要做|我要|希望做|希望|目标是)(.+)$", 0.94),
+                    (r"^(?:我们现在做.+?这个[，,]?\s*先把)(.+?)(?:骨架)?(?:搭起来|搭好|做起来|弄起来).*$", 0.92),
+                    (r"^(?:先把)(.+?)骨架(?:搭起来|搭好|做起来|弄起来).*$", 0.9),
                     (r"^(?:想做(?:一个)?)(.+)$", 0.9),
                     (r"^(?:i want to build|we want to build|i want to|we want to|i want|we want)(.+)$", 0.92),
                     (r"^(?:the goal is|goal is)(.+)$", 0.88),
@@ -287,9 +276,11 @@ class RuleBasedExtractor:
                 ),
             )
             if done:
-                matches.append(
-                    self._build_match(EventType.TASK, "claimed_done", EventAction.UPDATE, done[0], done[1])
-                )
+                subject = self._normalize_task_subject(done[0])
+                if subject:
+                    matches.append(
+                        self._build_match(EventType.TASK, "claimed_done", EventAction.UPDATE, subject, done[1])
+                    )
 
             plan = self._match_first(
                 text,
@@ -446,9 +437,15 @@ class RuleBasedExtractor:
         normalized = re.sub(r"^(?:你帮我|帮我|你)\s*", "", normalized)
         normalized = re.sub(r"^把", "", normalized)
         normalized = re.sub(r"^(?:那个|这个|这件|这项|该)\s*", "", normalized)
-        normalized = re.sub(r"\s*(?:工作|事情|任务)$", "", normalized)
+        if not re.match(r"^创建.+任务$", normalized):
+            normalized = re.sub(r"\s*(?:工作|事情|任务)$", "", normalized)
         normalized = normalized.strip(" ，。；;")
+        if self._is_generic_task_subject(normalized):
+            return ""
         return normalized
+
+    def _is_generic_task_subject(self, subject: str) -> bool:
+        return is_generic_task_subject(subject)
 
     def _normalize_verified_task_subject(self, subject: str) -> str:
         normalized = self._normalize_task_subject(subject)
@@ -499,6 +496,10 @@ class RuleBasedExtractor:
                     r"^(?:请|麻烦|烦请)?(?:你帮我|你先|帮我|你)(?:先|继续|再)?(?:把)?(.+?)(?:干了|做了|搞了|处理了|处理掉|完成|做完|搞定)(?:吧)?$",
                     0.94,
                 ),
+                (
+                    r"^(?:请|麻烦|烦请)?(?:你帮我|你先|帮我|你)(?:先|继续|再)?(创建.+?)(?:吧)?$",
+                    0.93,
+                ),
             ),
         )
         if todo:
@@ -525,23 +526,29 @@ class RuleBasedExtractor:
         return matches
 
     def _extract_user_decision(self, text: str) -> tuple[str, float] | None:
-        matched = re.match(r"^(?:还是|仍然|继续|就|先)按(.+)$", text, re.IGNORECASE)
+        matched = re.match(r"^(?:还是|仍然|继续|就|先|那就)按(.+)$", text, re.IGNORECASE)
         if matched:
-            subject = self._normalize_subject(matched.group(1))
+            subject = self._normalize_decision_subject(matched.group(1), prefix="按")
             if subject:
-                return f"按{subject}", 0.9
+                return subject, 0.9
 
-        matched = re.match(r"^(?:还是|仍然|继续|就|先)用(.+)$", text, re.IGNORECASE)
+        matched = re.match(r"^(?:还是|仍然|继续|就|先|那就)用(.+)$", text, re.IGNORECASE)
         if matched:
-            subject = self._normalize_subject(matched.group(1))
+            subject = self._normalize_decision_subject(matched.group(1), prefix="用")
             if subject:
-                return f"用{subject}", 0.86
+                return subject, 0.86
 
         matched = re.match(r"^(?:改用)(.+)$", text, re.IGNORECASE)
         if matched:
-            subject = self._normalize_subject(matched.group(1))
+            subject = self._normalize_decision_subject(matched.group(1), prefix="改用")
             if subject:
-                return f"改用{subject}", 0.88
+                return subject, 0.88
+
+        matched = re.match(r"^(?:改成|换成)(.+)$", text, re.IGNORECASE)
+        if matched:
+            subject = self._normalize_decision_subject(matched.group(1))
+            if subject:
+                return subject, 0.88
         return None
 
     def _extract_user_decision_resolution(self, text: str) -> tuple[str, float] | None:
@@ -563,6 +570,24 @@ class RuleBasedExtractor:
             if subject:
                 return f"用{subject}", 0.84
         return None
+
+    def _normalize_decision_subject(self, raw: str, *, prefix: str | None = None) -> str:
+        subject = self._normalize_subject(raw)
+        subject = re.sub(r"(?:吧|呀|啊|哦|喔|嘛|呗)$", "", subject).strip()
+        subject = re.sub(r"走$", "", subject).strip()
+        if not subject:
+            return ""
+
+        if prefix == "按":
+            subject = re.sub(r"^按", "", subject).strip()
+            return f"按{subject}" if subject else ""
+        if prefix == "用":
+            subject = re.sub(r"^用", "", subject).strip()
+            return f"用{subject}" if subject else ""
+        if prefix == "改用":
+            subject = re.sub(r"^(?:改用|用)", "", subject).strip()
+            return f"改用{subject}" if subject else ""
+        return subject
 
     def _extract_state_updates(self, content: str) -> list[TriggerMatch]:
         matches: list[TriggerMatch] = []

@@ -155,6 +155,7 @@ def create_app(
             }
         )
 
+    @app.get("/models")
     @app.get("/v1/models")
     async def list_models(request: Request) -> JSONResponse:
         try:
@@ -169,6 +170,7 @@ def create_app(
             headers={"content-type": result.content_type},
         )
 
+    @app.post("/chat/completions")
     @app.post("/v1/chat/completions")
     async def chat_completions(request_body: ChatCompletionsRequest, request: Request):
         client_fingerprint = _client_fingerprint(request)
@@ -235,6 +237,7 @@ def create_app(
             headers=headers,
         )
 
+    @app.post("/responses")
     @app.post("/v1/responses")
     async def responses(request_body: ResponsesRequest, request: Request):
         client_fingerprint = _client_fingerprint(request)
@@ -301,6 +304,7 @@ def create_app(
             headers=headers,
         )
 
+    @app.websocket("/responses")
     @app.websocket("/v1/responses")
     async def responses_websocket(websocket: WebSocket) -> None:
         await websocket.accept()

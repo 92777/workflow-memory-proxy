@@ -26,4 +26,4 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-memory_proxy = ["resources/*.sql"]
+memory_proxy = ["resources/*.sql", "resources/*.json"]

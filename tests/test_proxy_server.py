@@ -50,6 +50,7 @@ def build_upstream_app() -> FastAPI:
             {
                 "id": "chatcmpl_test",
                 "object": "chat.completion",
+                "echo_model": payload["model"],
                 "choices": [
                     {
                         "index": 0,
@@ -85,6 +86,7 @@ def build_upstream_app() -> FastAPI:
                 "id": "resp_test",
                 "object": "response",
                 "status": "completed",
+                "echo_model": payload["model"],
                 "output": [
                     {
                         "type": "message",
@@ -132,6 +134,48 @@ class ProxyServerTests(unittest.TestCase):
         response = client.get("/v1/models")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["data"][0]["id"], "gpt-test")
+
+    def test_root_models_endpoint_alias_passthrough(self) -> None:
+        client = self.make_client()
+        response = client.get("/models")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"][0]["id"], "gpt-test")
+
+    def test_chat_endpoint_aliases_builtin_mini_model_names(self) -> None:
+        client = self.make_client()
+        response = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-5-mini",
+                "messages": [{"role": "user", "content": "你好"}],
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["echo_model"], "gpt-5.4-mini")
+
+    def test_responses_endpoint_aliases_builtin_mini_model_names(self) -> None:
+        client = self.make_client()
+        response = client.post(
+            "/v1/responses",
+            json={
+                "model": "gpt-4o-mini",
+                "input": "你好",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["echo_model"], "gpt-5.4-mini")
+
+    def test_root_responses_endpoint_aliases_builtin_mini_model_names(self) -> None:
+        client = self.make_client()
+        response = client.post(
+            "/responses",
+            json={
+                "model": "gpt-5-mini",
+                "input": "你好",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["echo_model"], "gpt-5.4-mini")
 
     def test_from_env_uses_real_default_memory_prompt(self) -> None:
         original = os.environ.pop("MCPROXY_MEMORY_SYSTEM_PROMPT", None)
@@ -337,6 +381,119 @@ class ProxyServer:
         self.assertIn("已更新 /tmp/demo.py 并补上测试。", retained)
         self.assertNotIn("搜索 demo.py 里的 build_app 实现。", retained)
         self.assertNotIn("tests passed for demo.py", retained)
+
+    def test_chat_endpoint_prunes_redundant_validation_run_trace_after_pass(self) -> None:
+        client = self.make_client(salient_history_messages=2, min_history_messages=1, recent_window=1)
+        payload = {
+            "model": "gpt-test",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "我想继续优化工作流压缩。"},
+                {"role": "assistant", "content": "收到，我先再做一次导入校验。"},
+                {"role": "tool", "content": "验收通过: 导入校验"},
+                {"role": "assistant", "content": "我已经完成了回放脚本，下一步准备做灰度联调。"},
+                {"role": "user", "content": "继续推进灰度联调。"},
+            ],
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        self.assertEqual(response.status_code, 200)
+        echoed = response.json()["echo_messages"]
+        retained = [str(item.get("content")) for item in echoed]
+        self.assertNotIn("收到，我先再做一次导入校验。", retained)
+        self.assertNotIn("验收通过: 导入校验", retained)
+        self.assertFalse(
+            any(item == "我已经完成了回放脚本，下一步准备做灰度联调。" for item in retained)
+        )
+        self.assertTrue(
+            any(
+                "TODO: 继续推进灰度联调" in item
+                or "TODO: 灰度联调" in item
+                or "NEXT: 做灰度联调" in item
+                for item in retained
+            )
+        )
+
+    def test_chat_endpoint_prunes_shorthand_validation_run_trace_after_pass(self) -> None:
+        client = self.make_client(salient_history_messages=2, min_history_messages=1, recent_window=1)
+        payload = {
+            "model": "gpt-test",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "我想继续优化工作流压缩。"},
+                {"role": "assistant", "content": "收到，我先再验一下导入校验。"},
+                {"role": "tool", "content": "验证通过: 导入校验"},
+                {"role": "assistant", "content": "我已经完成了回放脚本，下一步准备做灰度联调。"},
+                {"role": "user", "content": "继续推进灰度联调。"},
+            ],
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        self.assertEqual(response.status_code, 200)
+        echoed = response.json()["echo_messages"]
+        retained = [str(item.get("content")) for item in echoed]
+        self.assertNotIn("收到，我先再验一下导入校验。", retained)
+        self.assertNotIn("验证通过: 导入校验", retained)
+        self.assertTrue(any("DONE: 导入校验" in item for item in retained))
+
+    def test_chat_endpoint_prunes_colloquial_validation_run_trace_after_pass(self) -> None:
+        client = self.make_client(salient_history_messages=2, min_history_messages=1, recent_window=1)
+        payload = {
+            "model": "gpt-test",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "我想继续优化工作流压缩。"},
+                {"role": "assistant", "content": "行，我先补一下导入校验。"},
+                {"role": "tool", "content": "验证完成: 导入校验"},
+                {"role": "assistant", "content": "我已经完成了回放脚本，下一步准备做灰度联调。"},
+                {"role": "user", "content": "继续推进灰度联调。"},
+            ],
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        self.assertEqual(response.status_code, 200)
+        echoed = response.json()["echo_messages"]
+        retained = [str(item.get("content")) for item in echoed]
+        self.assertNotIn("行，我先补一下导入校验。", retained)
+        self.assertNotIn("验证完成: 导入校验", retained)
+        self.assertTrue(any("DONE: 导入校验" in item for item in retained))
+
+    def test_chat_endpoint_prunes_targetless_execution_filler_trace(self) -> None:
+        client = self.make_client(salient_history_messages=1, min_history_messages=1, recent_window=1)
+        payload = {
+            "model": "gpt-test",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "我想继续优化工作流压缩。"},
+                {"role": "assistant", "content": "我先看一下。"},
+                {"role": "assistant", "content": "搜索 build_prompt_memory 的实现。"},
+                {"role": "tool", "content": "src/memory_proxy/prompt_builder.py:90:def build_prompt_memory("},
+                {"role": "assistant", "content": "查看 /workspace/workflow-memory-proxy/src/memory_proxy/prompt_builder.py 的现有实现。"},
+                {"role": "user", "content": "继续压工具噪音。"},
+            ],
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        self.assertEqual(response.status_code, 200)
+        echoed = response.json()["echo_messages"]
+        retained = [str(item.get("content")) for item in echoed]
+        self.assertNotIn("我先看一下。", retained)
+
+    def test_chat_endpoint_prunes_loose_execution_filler_trace(self) -> None:
+        client = self.make_client(salient_history_messages=1, min_history_messages=1, recent_window=1)
+        payload = {
+            "model": "gpt-test",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "我想继续优化工作流压缩。"},
+                {"role": "assistant", "content": "这个我来处理。"},
+                {"role": "assistant", "content": "搜索 build_prompt_memory 的实现。"},
+                {"role": "tool", "content": "src/memory_proxy/prompt_builder.py:90:def build_prompt_memory("},
+                {"role": "assistant", "content": "查看 /workspace/workflow-memory-proxy/src/memory_proxy/prompt_builder.py 的现有实现。"},
+                {"role": "user", "content": "继续压工具噪音。"},
+            ],
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        self.assertEqual(response.status_code, 200)
+        echoed = response.json()["echo_messages"]
+        retained = [str(item.get("content")) for item in echoed]
+        self.assertNotIn("这个我来处理。", retained)
 
     def test_chat_endpoint_keeps_only_latest_write_log_for_same_file(self) -> None:
         client = self.make_client(salient_history_messages=2, min_history_messages=1, recent_window=1)

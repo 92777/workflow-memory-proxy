@@ -8,6 +8,16 @@ import httpx
 
 from .config import ProxySettings
 
+MODEL_ALIASES = {
+    "gpt-5-mini": "gpt-5.4-mini",
+    "gpt-5-nano": "gpt-5.4-mini",
+    "gpt-4.1-nano": "gpt-5.4-mini",
+    "gpt-4o-mini": "gpt-5.4-mini",
+    "gpt-4-turbo": "gpt-5",
+    "gpt-4": "gpt-5",
+    "gpt-3.5-turbo": "gpt-5.4-mini",
+}
+
 
 class UpstreamProxyError(Exception):
     def __init__(self, status_code: int, detail: str) -> None:
@@ -46,6 +56,7 @@ class UpstreamOpenAIClient:
         *,
         forwarded_auth: str | None,
     ) -> UpstreamJSONResponse:
+        payload = _normalize_model_payload(payload)
         async with self._client() as client:
             response = await client.post(
                 "chat/completions",
@@ -66,6 +77,7 @@ class UpstreamOpenAIClient:
         *,
         forwarded_auth: str | None,
     ) -> UpstreamStreamResponse:
+        payload = _normalize_model_payload(payload)
         client = self._client()
         request = client.build_request(
             "POST",
@@ -100,6 +112,7 @@ class UpstreamOpenAIClient:
         *,
         forwarded_auth: str | None,
     ) -> UpstreamJSONResponse:
+        payload = _normalize_model_payload(payload)
         async with self._client() as client:
             response = await client.post(
                 "responses",
@@ -120,6 +133,7 @@ class UpstreamOpenAIClient:
         *,
         forwarded_auth: str | None,
     ) -> UpstreamStreamResponse:
+        payload = _normalize_model_payload(payload)
         client = self._client()
         request = client.build_request(
             "POST",
@@ -178,3 +192,15 @@ def _bearer(api_key: str | None) -> str | None:
     if not api_key:
         return None
     return f"Bearer {api_key}"
+
+
+def _normalize_model_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    model = payload.get("model")
+    if not isinstance(model, str):
+        return payload
+    normalized_model = MODEL_ALIASES.get(model, model)
+    if normalized_model == model:
+        return payload
+    updated = dict(payload)
+    updated["model"] = normalized_model
+    return updated

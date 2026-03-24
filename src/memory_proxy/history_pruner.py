@@ -5,6 +5,11 @@ import re
 
 from .openai_api import ChatMessage
 from .static_code import is_code_heavy_text
+from .zh_semantics import (
+    contains_workflow_keyword,
+    low_value_execution_filler_re,
+    meta_confirmation_re,
+)
 
 ARTIFACT_RE = re.compile(r"(?:/[\w./-]+)|(?:\b[\w./-]+\.[A-Za-z0-9]+\b)")
 PATCH_TARGET_RE = re.compile(r"^\*\*\* (?:Add|Update|Delete) File: (.+)$", re.MULTILINE)
@@ -29,15 +34,19 @@ TEST_OP_RE = re.compile(
     r"通过(?:测试|校验|验证|验收|回归|联调|灰度|巡检|复核))",
     re.IGNORECASE,
 )
+VALIDATION_RUN_OP_RE = re.compile(
+    r"(?:(?:再|重新|再次|继续)?(?:跑|做|执行|进行)(?:一(?:次|遍|轮)|一下)?[^。；;\n]{0,24}"
+    r"(?:测试|校验|验证|验收|回归|灰度|联调|巡检|复核)|"
+    r"(?:再|重新|再次|继续)?(?:验(?!证)|测(?!试)|跑)(?:一(?:下|遍|轮)|一下|一遍|一轮)\s*[^。；;\n]{0,24}"
+    r"(?:测试|校验|验证|验收|回归|灰度|联调|巡检|复核)|"
+    r"(?:再|重新|再次|继续|先)?(?:补|确认|过)(?:一(?:下|遍|轮)|一下|一遍|一轮)\s*[^。；;\n]{0,24}"
+    r"(?:测试|校验|验证|验收|回归|灰度|联调|巡检|复核)|"
+    r"(?:再|重新|再次|继续)?(?:测试|校验|验证|验收|回归|灰度|联调|巡检|复核)\s+[^。；;\n]+)",
+    re.IGNORECASE,
+)
 VERIFICATION_HINT_RE = re.compile(r"(测试|校验|验证|验收|回归|联调|灰度|巡检|复核)", re.IGNORECASE)
-META_CONFIRM_RE = re.compile(
-    r"^(?:好的|明白|收到|可以|行|好|继续|那我|我会|我来|我继续|我会继续|会继续)[，,、 ]*",
-    re.IGNORECASE,
-)
-WORKFLOW_RE = re.compile(
-    r"(帮我|请你|麻烦|记住|完成了|已经完成|下一步|接下来|继续|先做|先把|还是按|改用|不要|不能|必须|阻塞|待验证|部署|修复)",
-    re.IGNORECASE,
-)
+META_CONFIRM_RE = meta_confirmation_re()
+LOW_VALUE_EXECUTION_FILLER_RE = low_value_execution_filler_re()
 
 HIGH = "high"
 MEDIUM = "medium"
@@ -57,6 +66,35 @@ class OperationSignature:
     detail_keys: set[str] = field(default_factory=set)
 
 
+def has_workflow_signal(message_or_text: ChatMessage | str) -> bool:
+    text = (
+        message_or_text.content
+        if isinstance(message_or_text, ChatMessage)
+        else message_or_text
+    )
+    if not isinstance(text, str):
+        return False
+    stripped = text.strip()
+    if not stripped:
+        return False
+    if ERROR_RE.search(stripped) or QUESTION_RE.search(stripped):
+        return False
+    return contains_workflow_keyword(stripped)
+
+
+def is_verification_result_message(message: ChatMessage) -> bool:
+    if message.role not in {"assistant", "tool"}:
+        return False
+    if not isinstance(message.content, str):
+        return False
+    text = message.content.strip()
+    if not text or VALIDATION_RUN_OP_RE.search(text):
+        return False
+    if TEST_OP_RE.search(text) is None:
+        return False
+    return _extract_verification_target(text) is not None
+
+
 def classify_history_fidelity(message: ChatMessage) -> str:
     if not isinstance(message.content, str):
         return HIGH
@@ -66,13 +104,15 @@ def classify_history_fidelity(message: ChatMessage) -> str:
         return LOW
 
     lower = text.lower()
+    if _is_low_value_execution_filler(message, text):
+        return LOW
     if ERROR_RE.search(text) or QUESTION_RE.search(text) or is_code_heavy_text(text):
         return HIGH
     if message.role == "user" and ("记住" in text or ARTIFACT_RE.search(text)):
         return HIGH
-    if message.role == "user" and WORKFLOW_RE.search(text):
+    if message.role == "user" and contains_workflow_keyword(text):
         return HIGH
-    if ARTIFACT_RE.search(text) and (WORKFLOW_RE.search(text) or WRITE_OP_RE.search(text)):
+    if ARTIFACT_RE.search(text) and (contains_workflow_keyword(text) or WRITE_OP_RE.search(text)):
         return HIGH
     operation = _operation_signature(message, text)
     if operation is not None:
@@ -107,6 +147,10 @@ def prune_history_messages(messages: list[ChatMessage]) -> HistoryPruneResult:
         text = message.content if isinstance(message.content, str) else ""
         stripped = text.strip()
         if not stripped:
+            dropped_indexes.append(index)
+            continue
+
+        if _is_low_value_execution_filler(message, stripped):
             dropped_indexes.append(index)
             continue
 
@@ -185,9 +229,21 @@ def _is_low_value_meta_confirmation(message: ChatMessage, text: str) -> bool:
         return False
     if ERROR_RE.search(text) or QUESTION_RE.search(text):
         return False
-    if WORKFLOW_RE.search(text):
+    if contains_workflow_keyword(text):
         return False
     return bool(META_CONFIRM_RE.match(text))
+
+
+def _is_low_value_execution_filler(message: ChatMessage, text: str) -> bool:
+    if message.role != "assistant":
+        return False
+    if ERROR_RE.search(text) or QUESTION_RE.search(text):
+        return False
+    if ARTIFACT_RE.search(text) or is_code_heavy_text(text):
+        return False
+    if _operation_signature(message, text) is not None:
+        return False
+    return bool(LOW_VALUE_EXECUTION_FILLER_RE.match(text))
 
 
 def _operation_signature(message: ChatMessage, text: str) -> OperationSignature | None:
@@ -201,6 +257,12 @@ def _operation_signature(message: ChatMessage, text: str) -> OperationSignature 
         return OperationSignature("write", target_keys)
     if TEST_OP_RE.search(text):
         return OperationSignature("test", target_keys or _target_keys(_normalize_target(text)))
+    if VALIDATION_RUN_OP_RE.search(text):
+        run_target = _extract_validation_run_target(text)
+        return OperationSignature(
+            "test",
+            target_keys or _target_keys(run_target or _normalize_target(text)),
+        )
     if SEARCH_OP_RE.search(text):
         return OperationSignature("search", target_keys or _target_keys(_normalize_target(text)))
     if LIST_OP_RE.search(text):
@@ -275,6 +337,23 @@ def _extract_verification_target(text: str) -> str | None:
         if not require_hint and not (VERIFICATION_HINT_RE.search(subject) or "通过" in text):
             continue
         return subject
+    return None
+
+
+def _extract_validation_run_target(text: str) -> str | None:
+    patterns = (
+        r"(?:再|重新|再次|继续)?(?:跑|做|执行|进行)(?:一(?:次|遍|轮)|一下)?\s*([^，。；;\n]+?(?:测试|校验|验证|验收|回归|灰度联调|灰度|联调|巡检|复核))",
+        r"(?:再|重新|再次|继续)?(?:验(?!证)|测(?!试)|跑)(?:一(?:下|遍|轮)|一下|一遍|一轮)\s*([^，。；;\n]+?(?:测试|校验|验证|验收|回归|灰度联调|灰度|联调|巡检|复核))",
+        r"(?:再|重新|再次|继续|先)?(?:补|确认|过)(?:一(?:下|遍|轮)|一下|一遍|一轮)\s*([^，。；;\n]+?(?:测试|校验|验证|验收|回归|灰度联调|灰度|联调|巡检|复核))",
+        r"(?:再|重新|再次|继续)?(?:测试|校验|验证|验收|回归|联调|灰度|巡检|复核)\s+([^，。；;\n]+)$",
+    )
+    for pattern in patterns:
+        matched = re.search(pattern, text, re.IGNORECASE)
+        if not matched:
+            continue
+        subject = _normalize_target(matched.group(1))
+        if subject:
+            return subject
     return None
 
 

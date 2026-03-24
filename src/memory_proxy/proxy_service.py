@@ -13,7 +13,15 @@ from uuid import uuid4
 from .compressor import MemoryCompressor
 from .config import ProxySettings
 from .dsl import working_memory_to_dsl
-from .history_pruner import HIGH, LOW, MEDIUM, classify_history_fidelity, prune_history_messages
+from .history_pruner import (
+    HIGH,
+    LOW,
+    MEDIUM,
+    classify_history_fidelity,
+    has_workflow_signal,
+    is_verification_result_message,
+    prune_history_messages,
+)
 from .openai_api import ChatCompletionsRequest, ChatMessage, ResponsesRequest
 from .models import RawMessage, WorkingMemory
 from .prompt_builder import (
@@ -40,6 +48,9 @@ SALIENT_ERROR_TOKENS = (
     "traceback",
     "exception",
     "stack trace",
+)
+SUMMARY_FRIENDLY_GOAL_RE = re.compile(
+    r"^(?:我想做(?:一个)?|我想|我要做|我要|希望做|希望|目标是|想做(?:一个)?).+"
 )
 
 
@@ -675,10 +686,15 @@ class ChatProxyService:
             )
             for index, message in enumerate(compression_history, start=1)
         ]
+        redundant_salient_indexes = _find_redundant_salient_history_indexes(
+            compression_history,
+            recent_messages=recent,
+        )
         salient_indexes = _select_salient_history_indexes(
             compression_history,
             keep_count=self.settings.salient_history_messages,
             min_compressed_messages=self.settings.min_history_messages,
+            excluded_indexes=redundant_salient_indexes,
         )
         prompt_exclude_message_ids = {raw_messages[index].message_id for index in salient_indexes}
         compression = self.history_compressor.compress(
@@ -847,6 +863,7 @@ def _select_salient_history_indexes(
     *,
     keep_count: int,
     min_compressed_messages: int,
+    excluded_indexes: set[int] | None = None,
 ) -> list[int]:
     if keep_count <= 0 or not messages:
         return []
@@ -857,6 +874,8 @@ def _select_salient_history_indexes(
 
     scored: list[tuple[float, int]] = []
     for index, message in enumerate(messages):
+        if excluded_indexes and index in excluded_indexes:
+            continue
         score = _salient_history_score(message, index=index, total=len(messages))
         if score <= 0:
             continue
@@ -915,6 +934,47 @@ def _salient_history_score(message: ChatMessage, *, index: int, total: int) -> f
     recency_denominator = max(1, total - 1)
     score += index / recency_denominator * 0.5
     return round(score, 4)
+
+
+def _find_redundant_salient_history_indexes(
+    history: list[ChatMessage],
+    *,
+    recent_messages: list[ChatMessage],
+) -> set[int]:
+    if not history:
+        return set()
+
+    redundant: set[int] = set()
+    for index, message in enumerate(history):
+        if _is_summary_friendly_workflow_message(message):
+            redundant.add(index)
+            continue
+        if not is_verification_result_message(message):
+            continue
+        later_messages = history[index + 1 :] + recent_messages
+        if any(has_workflow_signal(candidate) for candidate in later_messages):
+            redundant.add(index)
+    return redundant
+
+
+def _is_summary_friendly_workflow_message(message: ChatMessage) -> bool:
+    if not isinstance(message.content, str):
+        return False
+    text = message.content.strip()
+    if not text:
+        return False
+    if not has_workflow_signal(text) and SUMMARY_FRIENDLY_GOAL_RE.search(text) is None:
+        return False
+    if _has_salient_artifact_hint(text):
+        return False
+    if is_code_heavy_text(text):
+        return False
+    lower = text.lower()
+    if any(token in lower for token in SALIENT_ERROR_TOKENS):
+        return False
+    if text.endswith(("?", "？")):
+        return False
+    return True
 
 
 def _has_salient_artifact_hint(text: str) -> bool:
