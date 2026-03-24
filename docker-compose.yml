@@ -1,0 +1,21 @@
+services:
+  memory-proxy:
+    build:
+      context: .
+    image: memory-compression-proxy:latest
+    ports:
+      - "8000:8000"
+    environment:
+      MCPROXY_UPSTREAM_BASE_URL: ${MCPROXY_UPSTREAM_BASE_URL:-http://host.docker.internal:8317/v1/}
+      MCPROXY_UPSTREAM_API_KEY: ${MCPROXY_UPSTREAM_API_KEY:-}
+      MCPROXY_COMPRESSION_ENABLED: ${MCPROXY_COMPRESSION_ENABLED:-1}
+      MCPROXY_RECENT_WINDOW: ${MCPROXY_RECENT_WINDOW:-2}
+      MCPROXY_MIN_HISTORY_MESSAGES: ${MCPROXY_MIN_HISTORY_MESSAGES:-2}
+      MCPROXY_STORE_ENABLED: 1
+      MCPROXY_STORE_DB_PATH: /data/memory_proxy.db
+      MCPROXY_STORE_MAX_REQUESTS: ${MCPROXY_STORE_MAX_REQUESTS:-100}
+      MCPROXY_TIMEOUT_SECONDS: ${MCPROXY_TIMEOUT_SECONDS:-60}
+    volumes:
+      - ./data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

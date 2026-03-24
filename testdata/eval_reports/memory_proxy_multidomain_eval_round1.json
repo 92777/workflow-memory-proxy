@@ -1,0 +1,337 @@
+{
+  "summary": {
+    "scenario_count": 20,
+    "avg_estimated_savings_pct": 64.46,
+    "avg_final_savings_pct": 85.73,
+    "max_final_savings_pct": 86.09,
+    "min_final_savings_pct": 85.33,
+    "scenarios_with_issues": 20,
+    "issue_counts": {
+      "primary_constraint_missing": 20,
+      "latest_done_missing": 20,
+      "stale_decision_retained": 20
+    }
+  },
+  "results": [
+    {
+      "slug": "education_scheduler",
+      "domain": "教育排课",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.65,
+      "final_estimated_savings_pct": 85.94,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给教育排课做一个排课回放助手\nDONE: 课程骨架\nTODO: 做上线回归\nDEC: 按按逐校导入方案 ; 按按年级批量导入方案\nCONS: 保留中文学段和班级术语 ; 不要接外部 SaaS 排课引擎 ; 不能改动老师端入口 ; 不要再回到按逐校导入方案\nSTATE: 按按逐校导入方案=还 ; 按按年级批量导入方案=还"
+    },
+    {
+      "slug": "food_safety_recall",
+      "domain": "食品安全召回",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.19,
+      "final_estimated_savings_pct": 85.53,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给食品安全召回做一个召回工单压缩助手\nDONE: 批次骨架\nTODO: 做上线回归\nDEC: 按按人工复核清单方案 ; 按按风险等级批量召回方案\nCONS: 保留批次和产地字段 ; 不要接外部 风险 SaaS ; 不能改动门店端入口 ; 不要再回到按人工复核清单方案\nSTATE: 按按人工复核清单方案=还 ; 按按风险等级批量召回方案=还"
+    },
+    {
+      "slug": "logistics_dispatch",
+      "domain": "物流调度",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.72,
+      "final_estimated_savings_pct": 86.01,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给物流调度做一个调度回放助手\nDONE: 站点骨架\nTODO: 做上线回归\nDEC: 按按人工锁单方案 ; 按按区域批量派车方案\nCONS: 保留站点和时间窗字段 ; 不要接外部 调度 SaaS ; 不能改动司机端入口 ; 不要再回到按人工锁单方案\nSTATE: 按按人工锁单方案=还 ; 按按区域批量派车方案=还"
+    },
+    {
+      "slug": "clinic_scheduling",
+      "domain": "门诊排班",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.77,
+      "final_estimated_savings_pct": 86.02,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给门诊排班做一个排班压缩助手\nDONE: 科室骨架\nTODO: 做上线回归\nDEC: 按按人工锁号方案 ; 按按科室批量排班方案\nCONS: 保留科室和班次字段 ; 不要接外部 排班 SaaS ; 不能改动医生端入口 ; 不要再回到按人工锁号方案\nSTATE: 按按人工锁号方案=还 ; 按按科室批量排班方案=还"
+    },
+    {
+      "slug": "ecommerce_refund",
+      "domain": "电商退款",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.28,
+      "final_estimated_savings_pct": 85.58,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给电商退款做一个退款回放助手\nDONE: 退款骨架\nTODO: 做上线回归\nDEC: 按按人工复核退款方案 ; 按按订单批量退款方案\nCONS: 保留订单号和退款原因字段 ; 不要接外部 财务 SaaS ; 不能改动商家端入口 ; 不要再回到按人工复核退款方案\nSTATE: 按按人工复核退款方案=还 ; 按按订单批量退款方案=还"
+    },
+    {
+      "slug": "factory_qc",
+      "domain": "制造质检",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.17,
+      "final_estimated_savings_pct": 85.4,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给制造质检做一个质检回放助手\nDONE: 质检骨架\nTODO: 做上线回归\nDEC: 按按人工复核质检方案 ; 按按工序批量质检方案\nCONS: 保留产线和工序字段 ; 不要接外部 质检 SaaS ; 不能改动车间端入口 ; 不要再回到按人工复核质检方案\nSTATE: 按按人工复核质检方案=还 ; 按按工序批量质检方案=还"
+    },
+    {
+      "slug": "support_knowledge",
+      "domain": "客服知识库",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.38,
+      "final_estimated_savings_pct": 85.69,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给客服知识库做一个知识库回放助手\nDONE: 知识骨架\nTODO: 做上线回归\nDEC: 按按人工审核问答方案 ; 按按标签批量上架方案\nCONS: 保留问题分类和知识标签 ; 不要接外部 知识 SaaS ; 不能改动客服端入口 ; 不要再回到按人工审核问答方案\nSTATE: 按按人工审核问答方案=还 ; 按按标签批量上架方案=还"
+    },
+    {
+      "slug": "hotel_booking",
+      "domain": "酒店预订",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.5,
+      "final_estimated_savings_pct": 85.79,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给酒店预订做一个预订回放助手\nDONE: 房态骨架\nTODO: 做上线回归\nDEC: 按按人工锁房方案 ; 按按房型批量预订方案\nCONS: 保留房型和入住日期字段 ; 不要接外部 酒店 SaaS ; 不能改动前台端入口 ; 不要再回到按人工锁房方案\nSTATE: 按按人工锁房方案=还 ; 按按房型批量预订方案=还"
+    },
+    {
+      "slug": "live_ops",
+      "domain": "直播运营",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.28,
+      "final_estimated_savings_pct": 85.53,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给直播运营做一个直播回放助手\nDONE: 直播骨架\nTODO: 做上线回归\nDEC: 按按人工排场方案 ; 按按场次批量排期方案\nCONS: 保留主播和场次字段 ; 不要接外部 直播 SaaS ; 不能改动主播端入口 ; 不要再回到按人工排场方案\nSTATE: 按按人工排场方案=还 ; 按按场次批量排期方案=还"
+    },
+    {
+      "slug": "recruiting_pipeline",
+      "domain": "招聘流程",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.85,
+      "final_estimated_savings_pct": 86.09,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给招聘流程做一个招聘回放助手\nDONE: 岗位骨架\nTODO: 做上线回归\nDEC: 按按人工筛选方案 ; 按按岗位批量推进方案\nCONS: 保留岗位和候选人字段 ; 不要接外部 招聘 SaaS ; 不能改动面试官端入口 ; 不要再回到按人工筛选方案\nSTATE: 按按人工筛选方案=还 ; 按按岗位批量推进方案=还"
+    },
+    {
+      "slug": "property_workorder",
+      "domain": "物业工单",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.84,
+      "final_estimated_savings_pct": 86.07,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给物业工单做一个工单回放助手\nDONE: 工单骨架\nTODO: 做上线回归\nDEC: 按按人工派单方案 ; 按按楼栋批量派单方案\nCONS: 保留楼栋和工单类别 ; 不要接外部 工单 SaaS ; 不能改动住户端入口 ; 不要再回到按人工派单方案\nSTATE: 按按人工派单方案=还 ; 按按楼栋批量派单方案=还"
+    },
+    {
+      "slug": "procurement_supply",
+      "domain": "供应链采购",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.73,
+      "final_estimated_savings_pct": 86.0,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给供应链采购做一个采购回放助手\nDONE: 采购骨架\nTODO: 做上线回归\nDEC: 按按人工比价方案 ; 按按供应商批量采购方案\nCONS: 保留供应商和批次字段 ; 不要接外部 采购 SaaS ; 不能改动采购端入口 ; 不要再回到按人工比价方案\nSTATE: 按按人工比价方案=还 ; 按按供应商批量采购方案=还"
+    },
+    {
+      "slug": "agri_sensor",
+      "domain": "农业传感",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.29,
+      "final_estimated_savings_pct": 85.52,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给农业传感做一个传感回放助手\nDONE: 传感骨架\nTODO: 做上线回归\nDEC: 按按人工复核告警方案 ; 按按地块批量告警方案\nCONS: 保留地块和设备字段 ; 不要接外部 农业 SaaS ; 不能改动巡检端入口 ; 不要再回到按人工复核告警方案\nSTATE: 按按人工复核告警方案=还 ; 按按地块批量告警方案=还"
+    },
+    {
+      "slug": "parking_control",
+      "domain": "城市停车",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.46,
+      "final_estimated_savings_pct": 85.73,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给城市停车做一个停车回放助手\nDONE: 停车骨架\nTODO: 做上线回归\nDEC: 按按人工复核扣费方案 ; 按按车场批量计费方案\nCONS: 保留车场和时段字段 ; 不要接外部 停车 SaaS ; 不能改动车主端入口 ; 不要再回到按人工复核扣费方案\nSTATE: 按按人工复核扣费方案=还 ; 按按车场批量计费方案=还"
+    },
+    {
+      "slug": "insurance_claim",
+      "domain": "保险理赔",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.42,
+      "final_estimated_savings_pct": 85.69,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给保险理赔做一个理赔回放助手\nDONE: 理赔骨架\nTODO: 做上线回归\nDEC: 按按人工复核理赔方案 ; 按按保单批量理赔方案\nCONS: 保留保单和理赔单字段 ; 不要接外部 理赔 SaaS ; 不能改动查勘端入口 ; 不要再回到按人工复核理赔方案\nSTATE: 按按人工复核理赔方案=还 ; 按按保单批量理赔方案=还"
+    },
+    {
+      "slug": "contract_review",
+      "domain": "法务合同",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.37,
+      "final_estimated_savings_pct": 85.68,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给法务合同做一个合同回放助手\nDONE: 合同骨架\nTODO: 做上线回归\nDEC: 按按人工复核条款方案 ; 按按合同批量审核方案\nCONS: 保留合同编号和条款类别 ; 不要接外部 合同 SaaS ; 不能改动法务端入口 ; 不要再回到按人工复核条款方案\nSTATE: 按按人工复核条款方案=还 ; 按按合同批量审核方案=还"
+    },
+    {
+      "slug": "soc_triage",
+      "domain": "安全运营",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.04,
+      "final_estimated_savings_pct": 85.33,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给安全运营做一个告警回放助手\nDONE: 告警骨架\nTODO: 做上线回归\nDEC: 按按人工复核告警方案 ; 按按告警批量分流方案\nCONS: 保留告警等级和来源字段 ; 不要接外部 安全 SaaS ; 不能改动值班端入口 ; 不要再回到按人工复核告警方案\nSTATE: 按按人工复核告警方案=还 ; 按按告警批量分流方案=还"
+    },
+    {
+      "slug": "video_moderation",
+      "domain": "短视频审核",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.34,
+      "final_estimated_savings_pct": 85.62,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给短视频审核做一个审核回放助手\nDONE: 审核骨架\nTODO: 做上线回归\nDEC: 按按人工复核标签方案 ; 按按标签批量审核方案\nCONS: 保留审核标签和场景字段 ; 不要接外部 审核 SaaS ; 不能改动审核端入口 ; 不要再回到按人工复核标签方案\nSTATE: 按按人工复核标签方案=还 ; 按按标签批量审核方案=还"
+    },
+    {
+      "slug": "energy_ops",
+      "domain": "能源运维",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.45,
+      "final_estimated_savings_pct": 85.67,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给能源运维做一个运维回放助手\nDONE: 运维骨架\nTODO: 做上线回归\nDEC: 按按人工派单方案 ; 按按站点批量巡检方案\nCONS: 保留站点和设备字段 ; 不要接外部 运维 SaaS ; 不能改动巡检端入口 ; 不要再回到按人工派单方案\nSTATE: 按按人工派单方案=还 ; 按按站点批量巡检方案=还"
+    },
+    {
+      "slug": "library_catalog",
+      "domain": "图书编目",
+      "user_turns": 22,
+      "message_count": 61,
+      "compressed_turns": 20,
+      "avg_estimated_savings_pct": 64.48,
+      "final_estimated_savings_pct": 85.75,
+      "final_history_dropped": 57,
+      "issues": [
+        "primary_constraint_missing",
+        "latest_done_missing",
+        "stale_decision_retained"
+      ],
+      "final_memory_text": "GOAL: 给图书编目做一个编目回放助手\nDONE: 编目骨架\nTODO: 做上线回归\nDEC: 按按人工复核编目方案 ; 按按馆藏批量编目方案\nCONS: 保留馆藏和分类字段 ; 不要接外部 编目 SaaS ; 不能改动馆员端入口 ; 不要再回到按人工复核编目方案\nSTATE: 按按人工复核编目方案=还 ; 按按馆藏批量编目方案=还"
+    }
+  ]
+}
